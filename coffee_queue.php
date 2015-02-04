@@ -70,10 +70,20 @@ class coffee_queue {
             }
         }
 
+	$a = array();
         if(!$this->exists($pose)) { //don't add duplicate pending requests
             $this->conn->query("insert into QUEUE values(NULL," . $pose["point_x"] . "," . $pose["point_y"] . "," . $pose["point_z"] . "," . $pose["quat_x"] . "," . $pose["quat_y"] . "," . $pose["quat_z"] . "," . $pose["quat_w"] . ",NOW()," . $this->status_to_numeric_value("pending") . ")") or die("queue insert failed");
+	    $a["status"] = "pushed";
+	    $a["id"] = (int) $this->conn->insert_id();
         }
-        echo "<h1>Coffee is on it's way!</h1>";
+	else {
+	    $a["status"] = "alreadypending";
+	    $a["id"] = 	$this->exists($pose,true);
+	}
+	
+	header('Content-Type: application/json');
+        echo json_encode($a);
+        exit;
     }
     //end push
 
@@ -121,11 +131,16 @@ class coffee_queue {
 
     //exists
     //check if the pose already is pending (so we don't add duplicates)
-    private function exists($pose) {
-        $query = "select COUNT(*) from QUEUE where status = " . $this->status_to_numeric_value("pending") . " AND point_x  = " . $pose["point_x"] . " AND point_y = " . $pose["point_y"] . " AND point_z = " . $pose["point_z"] . " AND quat_x = " . $pose["quat_x"] . " AND quat_y = " . $pose["quat_y"] . " AND quat_z = " . $pose["quat_z"] . " AND quat_w = " . $pose["quat_w"];
+    private function exists($pose,$return_id = false) {
+        $query = "select COUNT(*),id from QUEUE where status = " . $this->status_to_numeric_value("pending") . " AND point_x  = " . $pose["point_x"] . " AND point_y = " . $pose["point_y"] . " AND point_z = " . $pose["point_z"] . " AND quat_x = " . $pose["quat_x"] . " AND quat_y = " . $pose["quat_y"] . " AND quat_z = " . $pose["quat_z"] . " AND quat_w = " . $pose["quat_w"];
         $result = $this->conn->query($query) or die("exists query failed");
         $row =  $result->fetch_row() or die("exists query failed 2");
-        if($row[0] > 0) return true;
+        if($row[0] > 0) {
+		if($return_id) {
+			return $row['id'];
+		}
+		return true;
+	}
         return false;
     }
     //end exists
