@@ -41,6 +41,11 @@ if(isset($_GET['pop'])) {
     $n->pop();
 }
 
+if(isset($_GET['statuscheck'])) {
+    $n = new coffee_queue();
+    $n->status();
+}
+
 //class
 class coffee_queue {
     private $conn;
@@ -81,11 +86,40 @@ class coffee_queue {
             $a["id"] = 	$this->exists($pose,true);
         }
 
-        header('Content-Type: application/json');
+        $this->json_headers();
         echo json_encode($a);
         exit;
     }
     //end push
+
+    //status
+    public function status() {
+        if(!isset($_GET['id']) || !is_numeric($_GET['id'])) die("missing id");
+        $id = $_GET['id'];
+
+        //check current status
+        $result = $this->conn->query("select status from QUEUE where id = " . $id) or die("status failed");
+        if(!$row =  $result->fetch_assoc()) {
+            $a = array();
+            $a["doesntexist"] = 1;
+            $this->json_headers();
+            echo json_encode($a);
+            exit;
+        }
+
+        $a = array();
+        $a["status"] = $this->status_number_to_english($row["status"]);
+
+        //count how many pending
+        $result = $this->conn->query("select COUNT(*) as how_many_before from QUEUE where status = " . $this->status_to_numeric_value("pending") . " AND ID < " . $id) or die("status pending count failed");
+        $row = $result->fetch_assoc() or die("status pending count 2 failed");
+        $a["how-many-are-pending-before-id"] = (int) $row["how_many_before"];
+
+        $this->json_headers();
+        echo json_encode($a);
+        exit;
+    }
+    //end status
 
     //update
     public function update() {
@@ -97,11 +131,21 @@ class coffee_queue {
 
         $a = array();
         $a["updated"] = 1;
-        header('Content-Type: application/json');
+        $this->json_headers();
         echo json_encode($a);
         exit;
     }
     //end update
+
+    //json_headers
+    private function json_headers() {
+       header('Content-Type: application/json');
+       header('Cache-Control: no-cache, must-revalidate');
+       header("Pragma: no-cache");
+       header("Expires: 0");
+       header('Access-Control-Allow-Origin: *');
+    }
+    //end json_headers
 
     //pop
     //this isn't a true pop: poses remain in the queue until an update is sent via turtlebot (e.g. when it arrives at the pose)
@@ -123,7 +167,7 @@ class coffee_queue {
             $a["quat"]["z"] = $row["quat_z"];
             $a["quat"]["w"] = $row["quat_w"];
         }
-        header('Content-Type: application/json');
+        $this->json_headers();
         echo json_encode($a);
         exit;
     }
@@ -145,13 +189,34 @@ class coffee_queue {
     }
     //end exists
 
+    //status_array
+    private function status_array() {
+        $a = array();
+        $a["pending"] = 0;
+        $a["complete"] = 1;
+        $a["failed"] = 2;
+
+        return $a;
+    }
+    //end status_array
+
+    //status_number_to_english
+    private  function status_number_to_english($status_num) {
+        foreach($this->status_array() as $name => $num) {
+            if($num == $status_num) return $name;
+        }
+        die("unknown status name [" . htmlspecialchars($status_num) . "]");
+    }
+    //end status_number_to_english
+
     //status_to_numeric_value
     //the database keeps track of the status as a numeric but to make the code more legible this allows us to use english words
     private function status_to_numeric_value($status) {
-        if($status == "pending") return 0;
-        if($status == "complete") return 1;
-        if($status == "failed") return 2;
-        die("unknown status status_to_numeric_value");
+        if(array_key_exists($status,$this->status_array())) {
+            $a = $this->status_array();
+            return $a[$status];
+        }
+        die("unknown status status_to_numeric_value [" . htmlspecialchars($status) . "]");
     }
     //end status_to_numeric_value
 }
