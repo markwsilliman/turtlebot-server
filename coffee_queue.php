@@ -46,6 +46,11 @@ if(isset($_GET['statuscheck'])) {
     $n->status();
 }
 
+if(isset($_GET['printqueue'])) {
+    $n = new coffee_queue();
+    $n->print_queue();
+}
+
 //class
 class coffee_queue {
     private $conn;
@@ -91,6 +96,18 @@ class coffee_queue {
         exit;
     }
     //end push
+
+    //print_queue
+    //for troubleshooting: dumps the last 100 rows of queue to the screen
+    public function print_queue() {
+        $result = $this->conn->query("select * from QUEUE order by id desc limit 100") or die("print_queue failed");
+        while($row =  $result->fetch_assoc()) {
+            echo "<div style='border:1px; margin:20px;'>";
+            var_dump($row);
+            echo "</div>";
+        }
+    }
+    //end print_queue
 
     //status
     public function status() {
